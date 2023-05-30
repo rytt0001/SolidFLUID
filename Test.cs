@@ -7,7 +7,7 @@ public partial class Test : Node2D
 	// Constants
 	private float smoothingLength = 10.0f;
 	private float restDensity = 0.59f;
-	private float gasConstant = 500.0f;
+	private float gasConstant = 30.0f;
 	private float viscosityCoefficient = 0.1f;
 	
 
@@ -22,13 +22,13 @@ public partial class Test : Node2D
 	private float timeStep = 0.1f;
 
 	private float cornerTop = 0;
-	private float cornerBottom = 100;
+	private float cornerBottom = 200;
 	private float cornerLeft = 0;
-	private float cornerRight = 100;
-	private float spawnXOffset = 9;
+	private float cornerRight = 50;
+	private float spawnXOffset = 7;
 	private float spawnYOffset = 20;
 	private float spawnXMax = 5;
-	private float spawnYMax = 5;
+	private float spawnYMax = 15;
 	float M_PI = 3.14159265358979323846f;
 
 	// Initialization
@@ -84,7 +84,7 @@ public partial class Test : Node2D
 		public float				m_Effect_radius = 20f;
 		float				m_minRadius;
 	
-		float				m_stiffness = 500.0f;
+		float				m_stiffness = 50.0f;
 		float				m_particleRadiusRatio = 3.0f;
 		float				m_viscosity = 0.1f;
 		float				m_maxSpeed = 100.0f;
@@ -127,15 +127,16 @@ public partial class Test : Node2D
 				{
 					float q = r / m_Effect_radius;
 					float w = KernelPoly6Density(r,radius);
-					Density += Mass * w;
+					Density += w;
 					
 				}
 				
 				
 			}
-			GD.Print(Density);
-			Pressure = m_stiffness * (Density - restDensity);
+			Density *= Mass;
 			
+			Pressure = m_stiffness * (Density - restDensity);
+			GD.Print(Pressure);
 
 		}
 
@@ -166,7 +167,7 @@ public partial class Test : Node2D
 					pressureAcc += r * 0.02f * Mass * ((m_stiffness * (Density + particle.Density)) / (2.0f * Density + particle.Density)) * KernelSpikyGradientFactor(length * 0.8f, m_Effect_radius);
 					
 					Forces += pressureAcc;
-					particle.Forces -= pressureAcc;
+					//particle.Forces -= pressureAcc;
 				}
 				if(m_bViscosity)
 				{
@@ -178,7 +179,7 @@ public partial class Test : Node2D
 						Vector2 viscosityAcc = deltaVel * -Mass * (viscosityCoefficient / (2.0f * Density * particle.Density)) * KernelViscosityLaplacian(length, m_Effect_radius);
 
 						Forces += viscosityAcc;
-						particle.Forces -= viscosityAcc;
+						//particle.Forces -= viscosityAcc;
 					}
 				}
 				
