@@ -6,14 +6,15 @@ public partial class Test : Node2D
 {
 	// Constants
 	private float smoothingLength = 10.0f;
-	private float restDensity = 1000.0f;
-	private float gasConstant = 2000.0f;
-	private float viscosityCoefficient = 100.0f;
+	private float restDensity = 0.59f;
+	private float gasConstant = 500.0f;
+	private float viscosityCoefficient = 0.1f;
 	
 
 	// Particle properties
-	private float particleMass = 1.0f;
-	private float particleRadius = 5.0f;
+	private float particleMass = 0.02f;
+	private float particleRadius = 3.0f;
+	private float particleEffectRadius = 10.0f;
 	private List<Particle> particles = new List<Particle>();
 
 	// Simulation parameters
@@ -21,23 +22,33 @@ public partial class Test : Node2D
 	private float timeStep = 0.01f;
 
 	private float cornerTop = 0;
-	private float cornerBottom = 600;
+	private float cornerBottom = 100;
 	private float cornerLeft = 0;
-	private float cornerRight = 800;
-
+	private float cornerRight = 100;
+	private float spawnXOffset = 9;
+	private float spawnYOffset = 20;
+	private float spawnXMax = 5;
+	private float spawnYMax = 5;
+	float M_PI = 3.14159265358979323846f;
 
 	// Initialization
 	public override void _Ready()
 	{
+		GD.Seed(12345);
+		RandomNumberGenerator random = new RandomNumberGenerator();
+		random.Randomize();
+		float volume = particleEffectRadius * particleEffectRadius * M_PI;
 		// Create particles
-		for (int i = 0; i < 10; i++)
+		for (int i = 0; i < spawnXMax; i++)
 		{
-			for (int j = 0; j < 10; j++)
+			for (int j = 0; j < spawnYMax; j++)
 			{
 				Particle particle = new Particle();
 				particle.gravity = gravity;
-				particle.Position = new Vector2(i * 20, j*20);
-				particle.Mass = particleMass;
+				particle.Position = new Vector2(i * spawnXOffset+random.RandfRange(0, 5), j*spawnYOffset+random.RandfRange(0, 5));
+				particle.Mass = volume * restDensity;
+				//particle.Mass = particleMass;
+				particle.m_Effect_radius = particleEffectRadius;
 				particles.Add(particle);
 			}
 			
@@ -70,39 +81,62 @@ public partial class Test : Node2D
 		public Vector2 Forces { get; set; }
 		public Vector2 gravity { get; set; }
 
-		float				m_Effect_radius = 20f;
+		public float				m_Effect_radius = 20f;
 		float				m_minRadius;
-		float				m_restDensity = 0.59f;
+	
 		float				m_stiffness = 500.0f;
 		float				m_particleRadiusRatio = 3.0f;
 		float				m_viscosity = 0.1f;
-		float				m_maxSpeed = 10.0f;
-		float				m_maxAcceleration = 900.0f;
+		float				m_maxSpeed = 100.0f;
+		float				m_maxAcceleration = 9000.0f;
 		float				m_timeScale = 1.0f; // use this to make simulation more stable
 		float				m_wallFriction = 0.4f;
 		float				m_wallRestitution = 0.4f;
 		float               M_PI = 3.14159265358979323846f;
+		bool 			    m_bPressure = true;
+		bool 			    m_bViscosity = true;
 		// Compute density and pressure of the particle
 		public void ComputeDensityAndPressure(List<Particle> particles, float smoothingLength, float particleMass, float restDensity, float gasConstant)
 		{
 			Density = 0.0f;
+			float radius = m_Effect_radius;
+			float baseWeight = KernelDefaultGradientFactor(0.0f, radius);
 			foreach (Particle particle in particles)
 			{
-				float r = Position.DistanceTo(particle.Position);
-				if (r < smoothingLength)
-				{
-					float q = r / smoothingLength;
-					float w = KernelCubicSpline(q);
-					Density += particleMass * w;
-				}
-			}
 
-			Pressure = gasConstant * (Density - restDensity);
+				Density = baseWeight;
+				particle.Density = baseWeight;
+			}
+			
+			foreach (Particle particle in particles)
+			{
+				float length = Position.DistanceTo(particle.Position);
+
+				if(particle == this)
+				{
+					continue;
+				}
+				if(length >= m_Effect_radius)
+				{
+					continue;
+				}
+				
+				
+				float weight = KernelDefaultGradientFactor(length, radius);
+				Density += weight*Mass;
+				particle.Density += weight*particle.Mass;
+				GD.Print(weight);
+			}
+			
+			Pressure = m_stiffness * (Density - restDensity);
+			
+
 		}
 
 		// Compute forces acting on the particle
 		public void ComputeForces(List<Particle> particles, float smoothingLength, float particleMass, float viscosityCoefficient)
 		{
+			
 			Forces = gravity * Density;
 
 			foreach (Particle particle in particles)
@@ -119,12 +153,28 @@ public partial class Test : Node2D
 				Vector2 r = Position - particle.Position;
 				
 
+				if(m_bPressure)
+				{
+					//Pressure Gradient Forces
+					Vector2 pressureAcc = r * (0-Mass) * ((Pressure + particle.Pressure) / (2.0f * Density * particle.Density)) * KernelSpikyGradientFactor(length, m_Effect_radius);
+					pressureAcc += r * 0.02f * Mass * ((m_stiffness * (Density + particle.Density)) / (2.0f * Density + particle.Density)) * KernelSpikyGradientFactor(length * 0.8f, m_Effect_radius);
+					Forces += pressureAcc;
+					particle.Forces -= pressureAcc;
+				}
+				if(m_bViscosity)
+				{
+				
 
-				//Pressure Gradient Forces
-				Vector2 pressureAcc = r * (0-Mass) * ((Pressure + particle.Pressure) / (2.0f * Density * particle.Density)) * KernelSpikyGradientFactor(length, m_Effect_radius);
-				pressureAcc += r * 0.02f * Mass * ((m_stiffness * (Density + particle.Density)) / (2.0f * Density + particle.Density)) * KernelSpikyGradientFactor(length * 0.8f, m_Effect_radius);
-				Forces += pressureAcc;
-				GD.Print(KernelSpikyGradientFactor(length, m_Effect_radius));
+					{
+						
+						Vector2 deltaVel = Velocity - particle.Velocity;
+						Vector2 viscosityAcc = deltaVel * -Mass * (viscosityCoefficient / (2.0f * Density * particle.Density)) * KernelViscosityLaplacian(length, m_Effect_radius);
+
+						Forces += viscosityAcc;
+						particle.Forces -= viscosityAcc;
+					}
+				}
+				
 				//particle.Forces -= pressureAcc;
 
 
@@ -135,6 +185,10 @@ public partial class Test : Node2D
 		public void Integrate(float timeStep)
 		{
 			Velocity += timeStep * Forces / Density;
+			if(Velocity.Length() > m_maxSpeed)
+			{
+				Velocity = Velocity.Normalized() * m_maxSpeed;
+			}
 			Position += timeStep * Velocity;
 		}
 
@@ -211,22 +265,12 @@ public partial class Test : Node2D
 			return kernel * kernel * (24.0f / ((float)M_PI * h2 * h2 * h2 * h * r));
 		}
 
-		// Compute gradient of the SPH spiky kernel
-		private Vector2 GradientSpikyKernel(Vector2 r, float smoothingLength)
+		float KernelPoly6Density(float r, float h)
 		{
-			float rLength = r.Length();
-			if (rLength > 0 && rLength < smoothingLength)
-			{
-				float factor = -45.0f / (3.14f * Mathf.Pow(smoothingLength, 6));
-				float scalar = smoothingLength - rLength;
-				return factor * scalar * scalar * r.Normalized();
-			}
-			else
-			{
-				return Vector2.Zero;
-			}
+			float h2 = h * h;
+			float kernel = h2 - r * r;
+			return kernel * kernel * kernel * (315.0f / (64.0f * ((float)M_PI * h2 * h2 * h2 * h2 * h2)));
 		}
-
 		public void IsOutBox(float cornerLeft, float cornerRight, float cornerTop, float cornerBottom)
 		{
 			if (Position.X < cornerLeft)
@@ -238,19 +282,19 @@ public partial class Test : Node2D
 			{
 				Position = new Vector2(cornerRight, Position.Y);
 				Velocity = new Vector2(-Velocity.X, Velocity.Y);
-				Velocity = new Vector2(0,0);
+				//Velocity = new Vector2(0,0);
 			}
 			if (Position.Y < cornerTop)
 			{
 				Position =new  Vector2(Position.X, cornerTop);
 				Velocity = new Vector2(Velocity.X, -Velocity.Y);
-				Velocity = new Vector2(0,0);
+				//Velocity = new Vector2(0,0);
 			}
 			if (Position.Y > cornerBottom)
 			{
 				Position = new Vector2(Position.X, cornerBottom);
 				Velocity = new Vector2(Velocity.X, -Velocity.Y);
-				Velocity = new Vector2(0,0);
+				//Velocity = new Vector2(0,0);
 			}
 			
 		}
