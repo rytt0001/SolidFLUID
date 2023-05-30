@@ -8,12 +8,16 @@ radius = 5.0
 [sub_resource type="SphereMesh" id="SphereMesh_vatgj"]
 
 [node name="ParticleInstanceBody" type="RigidBody2D"]
+mass = 0.1
+max_contacts_reported = 200
+contact_monitor = true
 freeze = true
 script = ExtResource("1_ktw22")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_jhaau")
+one_way_collision_margin = 15.3
 
 [node name="MeshInstance2D" type="MeshInstance2D" parent="CollisionShape2D"]
-scale = Vector2(9.972, 9.972)
+scale = Vector2(9.5, 9.5)
 mesh = SubResource("SphereMesh_vatgj")
