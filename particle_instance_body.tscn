@@ -1,0 +1,19 @@
+[gd_scene load_steps=4 format=3 uid="uid://c8ghyj0ks1to0"]
+
+[ext_resource type="Script" path="res://ParticlePhysics.gd" id="1_ktw22"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_jhaau"]
+radius = 5.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_vatgj"]
+
+[node name="ParticleInstanceBody" type="RigidBody2D"]
+freeze = true
+script = ExtResource("1_ktw22")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_jhaau")
+
+[node name="MeshInstance2D" type="MeshInstance2D" parent="CollisionShape2D"]
+scale = Vector2(9.972, 9.972)
+mesh = SubResource("SphereMesh_vatgj")

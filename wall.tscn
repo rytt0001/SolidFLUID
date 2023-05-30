@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3 uid="uid://cpu7p1td5vr8h"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_017s8"]
+size = Vector2(461, 20)
+
+[sub_resource type="QuadMesh" id="QuadMesh_u6gqd"]
+
+[node name="WALL" type="RigidBody2D"]
+position = Vector2(100, 300)
+rotation = 0.829031
+mass = 1000.0
+freeze = true
+metadata/is_wall = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_017s8")
+
+[node name="MeshInstance2D" type="MeshInstance2D" parent="."]
+scale = Vector2(462, 20)
+mesh = SubResource("QuadMesh_u6gqd")
