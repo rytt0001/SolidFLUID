@@ -12,9 +12,9 @@ public partial class Test : Node2D
 	
 
 	// Particle properties
-	private float particleMass = 1f;
+	private float particleMass = 0.02f;
 	private float particleRadius = 3.0f;
-	private float particleEffectRadius = 20.0f;
+	private float particleEffectRadius = 8.0f;
 	private List<Particle> particles = new List<Particle>();
 
 	// Simulation parameters
@@ -22,13 +22,13 @@ public partial class Test : Node2D
 	private float timeStep = 0.1f;
 
 	private float cornerTop = 0;
-	private float cornerBottom = 200;
+	private float cornerBottom = 40;
 	private float cornerLeft = 0;
-	private float cornerRight = 50;
+	private float cornerRight = 300;
 	private float spawnXOffset = 7;
-	private float spawnYOffset = 20;
-	private float spawnXMax = 5;
-	private float spawnYMax = 15;
+	private float spawnYOffset = 7;
+	private float spawnXMax = 30;
+	private float spawnYMax = 5;
 	float M_PI = 3.14159265358979323846f;
 
 	// Initialization
@@ -65,10 +65,10 @@ public partial class Test : Node2D
 	public void DrawParticle(Particle p)
 	{
 		DrawCircle(p.Position, particleRadius, Colors.White);
-		DrawLine(new Vector2(cornerLeft,cornerTop), new Vector2(cornerRight,cornerTop), Colors.Red,2);
-		DrawLine(new Vector2(cornerLeft,cornerTop), new Vector2(cornerLeft,cornerBottom), Colors.Red,2);
-		DrawLine(new Vector2(cornerLeft,cornerBottom), new Vector2(cornerRight,cornerBottom), Colors.Red,2);
-		DrawLine(new Vector2(cornerRight,cornerTop), new Vector2(cornerRight,cornerBottom), Colors.Red,2);
+		DrawLine(new Vector2(cornerLeft,cornerTop), new Vector2(cornerRight,cornerTop), Colors.Red);
+		DrawLine(new Vector2(cornerLeft,cornerTop), new Vector2(cornerLeft,cornerBottom), Colors.Red);
+		DrawLine(new Vector2(cornerLeft,cornerBottom), new Vector2(cornerRight,cornerBottom), Colors.Red);
+		DrawLine(new Vector2(cornerRight,cornerTop), new Vector2(cornerRight,cornerBottom), Colors.Red);
 	}
 	// Particle class
 	public class Particle
@@ -87,16 +87,34 @@ public partial class Test : Node2D
 		float				m_stiffness = 50.0f;
 		float				m_particleRadiusRatio = 3.0f;
 		float				m_viscosity = 0.1f;
-		float				m_maxSpeed = 100.0f;
+		float				m_maxSpeed = 1000.0f;
 		float				m_maxAcceleration = 9000.0f;
 		float				m_timeScale = 1.0f; // use this to make simulation more stable
 		float				m_wallFriction = 0.4f;
-		float				m_wallRestitution = 0.4f;
+		float				m_wallRestitution = 0.8f;
 		float               M_PI = 3.14159265358979323846f;
 		bool 			    m_bPressure = true;
 		bool 			    m_bViscosity = true;
 
-
+		public bool IsNanOrInfinity(float f)
+		{
+			if(float.IsNaN(f) || float.IsInfinity(f))
+			{
+				GD.PrintErr("IsNanOrInfinity Float");
+				return true ;
+			}
+				
+			return false;
+		}
+		public bool IsNanOrInfinity(Vector2 v)
+		{
+			if(IsNanOrInfinity(v.X) || IsNanOrInfinity(v.Y))
+				{
+					GD.PrintErr("IsNanOrInfinity Vector2");
+					return true ;
+				}
+			return false;
+		}
 		
 		// Compute density and pressure of the particle
 		public void ComputeDensityAndPressure(List<Particle> particles, float smoothingLength, float particleMass, float restDensity, float gasConstant)
@@ -112,13 +130,19 @@ public partial class Test : Node2D
 			
 			foreach (Particle particle in particles)
 			{
-				float length = Position.DistanceTo(particle.Position);
-				float r = Position.DistanceTo(particle.Position);
-				
 				if(particle == this)
 				{
 					continue;
 				}
+				float length = Position.DistanceTo(particle.Position);
+				float r = Position.DistanceTo(particle.Position);
+				if(IsNanOrInfinity(r))
+				{
+					r=0;
+					continue;
+				}
+				
+				
 				if(length >= m_Effect_radius)
 				{
 					continue;
@@ -127,6 +151,8 @@ public partial class Test : Node2D
 				{
 					float q = r / m_Effect_radius;
 					float w = KernelPoly6Density(r,radius);
+					if(IsNearZero(w) || IsNanOrInfinity(w))
+						w=0.0001f;
 					Density += w;
 					
 				}
@@ -136,7 +162,7 @@ public partial class Test : Node2D
 			Density *= Mass;
 			
 			Pressure = m_stiffness * (Density - restDensity);
-			GD.Print(Pressure);
+			//GD.Print(Pressure);
 
 		}
 
@@ -159,15 +185,16 @@ public partial class Test : Node2D
 				}
 				Vector2 r = Position - particle.Position;
 				
-
-				if(m_bPressure)
+				if(IsNearZero((2.0f * Density * particle.Density)))
+					continue;
+				if(m_bPressure )
 				{
 					//Pressure Gradient Forces
 					Vector2 pressureAcc = r * (0-Mass) * ((Pressure + particle.Pressure) / (2.0f * Density * particle.Density)) * KernelSpikyGradientFactor(length, m_Effect_radius);
 					pressureAcc += r * 0.02f * Mass * ((m_stiffness * (Density + particle.Density)) / (2.0f * Density + particle.Density)) * KernelSpikyGradientFactor(length * 0.8f, m_Effect_radius);
 					
 					Forces += pressureAcc;
-					//particle.Forces -= pressureAcc;
+					particle.Forces -= pressureAcc;
 				}
 				if(m_bViscosity)
 				{
@@ -179,7 +206,7 @@ public partial class Test : Node2D
 						Vector2 viscosityAcc = deltaVel * -Mass * (viscosityCoefficient / (2.0f * Density * particle.Density)) * KernelViscosityLaplacian(length, m_Effect_radius);
 
 						Forces += viscosityAcc;
-						//particle.Forces -= viscosityAcc;
+						particle.Forces -= viscosityAcc;
 					}
 				}
 				
@@ -188,7 +215,10 @@ public partial class Test : Node2D
 
 			}
 		}
-
+		public bool IsNearZero(float val)
+		{
+			return (val < 0.0001f && val > -0.0001f);
+		}
 		// Integrate particle's position and velocity
 		public void Integrate(float timeStep)
 		{
@@ -284,37 +314,54 @@ public partial class Test : Node2D
 		}
 		public void IsOutBox(float cornerLeft, float cornerRight, float cornerTop, float cornerBottom)
 		{
+			if(IsNanOrInfinity(Position) || IsNanOrInfinity(Velocity))
+			{
+				Position = new Vector2(cornerLeft,cornerBottom);
+				Velocity = new Vector2(0,0);
+				GD.PrintErr("ssssssssszzz");
+			}
 			if (Position.X < cornerLeft)
 			{
 				Position = new Vector2(cornerLeft,Position.Y);
-				Velocity = new Vector2(-Velocity.X,Velocity.Y);
+				Velocity = new Vector2(-Velocity.X*m_wallRestitution,Velocity.Y);
 			}
 			if (Position.X > cornerRight)
 			{
 				Position = new Vector2(cornerRight, Position.Y);
-				Velocity = new Vector2(-Velocity.X, Velocity.Y);
+				Velocity = new Vector2(-Velocity.X*m_wallRestitution, Velocity.Y);
 				//Velocity = new Vector2(0,0);
 			}
 			if (Position.Y < cornerTop)
 			{
 				Position =new  Vector2(Position.X, cornerTop);
-				Velocity = new Vector2(Velocity.X, -Velocity.Y);
+				Velocity = new Vector2(Velocity.X, -Velocity.Y*m_wallRestitution);
 				//Velocity = new Vector2(0,0);
 			}
 			if (Position.Y > cornerBottom)
 			{
 				Position = new Vector2(Position.X, cornerBottom);
-				Velocity = new Vector2(Velocity.X, -Velocity.Y);
+				Velocity = new Vector2(Velocity.X, -Velocity.Y*m_wallRestitution);
 				//Velocity = new Vector2(0,0);
 			}
 			
 		}
+		public void AddRandomEpsilonOffsetToPos()
+		{
+			Position += new Vector2((float)GD.RandRange(-0.0001f, 0.0001f), (float)GD.RandRange(-0.0001f, 0.0001f));
+		}
 
 	}
+
+	
 
 	// Main update loop
 	public override void _Process(double delta)
 	{
+		// Compute densities and pressures
+		foreach (Particle particle in particles)
+		{
+			particle.AddRandomEpsilonOffsetToPos();
+		}
 		// Compute densities and pressures
 		foreach (Particle particle in particles)
 		{
@@ -333,7 +380,34 @@ public partial class Test : Node2D
 			particle.IsOutBox(cornerLeft, cornerRight, cornerTop, cornerBottom);
 			particle.Integrate(timeStep);
 		}
-		
+		//Listen For input Key Press Arrow left
+		if (Input.IsActionPressed("ui_left"))
+		{
+			//Move the box to the left
+			cornerLeft -= 10;
+			cornerRight -= 10;
+		}
+		//Listen For input Key Press Arrow right
+		if (Input.IsActionPressed("ui_right"))
+		{
+			//Move the box to the right
+			cornerLeft += 10;
+			cornerRight += 10;
+		}
+		//Listen For input Key Press Arrow up
+		if (Input.IsActionPressed("ui_up"))
+		{
+			//Move the box to the up
+			cornerTop -= 10;
+			cornerBottom -= 10;
+		}
+		//Listen For input Key Press Arrow down
+		if (Input.IsActionPressed("ui_down"))
+		{
+			//Move the box to the down
+			cornerTop += 10;
+			cornerBottom += 10;
+		}
 
 		QueueRedraw();
 	}
